@@ -27,10 +27,16 @@ function solve_dependencies() {
     local FLAG_SKIP_PROMPT=false
     local FLAG_YES_TO_ALL=false
 
-    while getopts "y" opt; do
+    while getopts "ys" opt; do
         case $opt in
             y)
-                echo Automatically installs missing packages without asking for user intervention, but shows the missing packages.
+                ## Automatically installs missing packages without asking for user intervention, but shows the missing packages.
+                FLAG_YES_TO_ALL=true
+                ;;
+            s)
+                ## Silent automated mode - installs missing packages without asking for any user intervention (exsept for sudo password)
+                ## This automatically sets the -y flag
+                FLAG_SKIP_PROMPT=true
                 FLAG_YES_TO_ALL=true
                 ;;
             \?)
@@ -40,36 +46,36 @@ function solve_dependencies() {
         esac
     done
 
-    echo "Checking dependencies for $0"
+    [ "$FLAG_SKIP_PROMPT" = false ] && echo "Checking dependencies for $0"
     for package in "${DEPENDENCIES[@]}"; do
-        echo -n " - Checking $package...                    "
+        [ "$FLAG_SKIP_PROMPT" = false ] && echo -n " - Checking $package...                    "
         
         if ! (dpkg -l | grep -w "$package") > /dev/null; then   
                 missing_packages=$((missing_packages+1))
                 missing_packages_list+=($package)
-                echo -e "\e[31m Missing \e[0m"
+                [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[31m Missing \e[0m"
             else
-                echo -e "\e[32m OK \e[0m"    
+                [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[32m OK \e[0m"
         fi
     done
 
     if [ $missing_packages -eq 0 ]; then
-        echo "All dependencies are satisfied." 
+        [ "$FLAG_SKIP_PROMPT" = false ] && echo "All dependencies are satisfied." 
         return 0
     else
-        echo "The following dependencies are missing:"
+        [ "$FLAG_SKIP_PROMPT" = false ] && echo "The following dependencies are missing:"
         for package in "${missing_packages_list[@]}"; do
-            echo $package
+            [ "$FLAG_SKIP_PROMPT" = false ] && echo $package
         done
 
-        if [ "$skip_prompt" = true ] || [ "$install_all" = true ]; then
+        if [ "$skip_prompt" = false ] || [ "$install_all" = true ]; then
             for package in "${missing_packages_list[@]}"; do
-                echo -n " - Installing $package...                  "
+                [ "$FLAG_SKIP_PROMPT" = false ] && echo -n " - Installing $package...                  "
                 sudo apt-get install -y $package >> /dev/null
                 if (dpkg -l | grep -w "$package") > /dev/null; then
-                    echo -e "\e[32m OK \e[0m"
+                    [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[32m OK \e[0m"
                 else
-                    echo -e "\e[31m Failed \e[0m"
+                    [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[31m Failed \e[0m"
                 fi
             done
             return 0
@@ -83,12 +89,12 @@ function solve_dependencies() {
                 case $answer in
                     [Yy]* ) 
                         for package in "${missing_packages_list[@]}"; do
-                            echo -n " - Installing $package...                  "
+                            [ "$FLAG_SKIP_PROMPT" = false ] && echo -n " - Installing $package...                  "
                             sudo apt-get install -y $package >> /dev/null
                             if (dpkg -l | grep -w "$package") > /dev/null; then
-                                echo -e "\e[32m OK \e[0m"
+                                [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[32m OK \e[0m"
                             else
-                                echo -e "\e[31m Failed \e[0m"
+                                [ "$FLAG_SKIP_PROMPT" = false ] && echo -e "\e[31m Failed \e[0m"
                             fi
                         done
                         return 0
@@ -97,7 +103,7 @@ function solve_dependencies() {
                         return 1
                         ;;
                     * ) 
-                        echo "Please answer yes or no."
+                        [ "$FLAG_SKIP_PROMPT" = false ] && echo "Please answer yes or no."
                         ;;
                 esac
             done
@@ -105,4 +111,4 @@ function solve_dependencies() {
     fi
 }
 
-solve_dependencies -y
+solve_dependencies -s
