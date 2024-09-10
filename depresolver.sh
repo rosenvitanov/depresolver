@@ -23,6 +23,22 @@ curl
 function solve_dependencies() {
     local missing_packages=0
     local missing_packages_list=()
+    
+    local FLAG_SKIP_PROMPT=false
+    local FLAG_YES_TO_ALL=false
+
+    while getopts "y" opt; do
+        case $opt in
+            y)
+                echo Automatically installs missing packages without asking for user intervention, but shows the missing packages.
+                FLAG_YES_TO_ALL=true
+                ;;
+            \?)
+                echo "Invalid option: -$OPTARG" >&2
+                return 1
+                ;;
+        esac
+    done
 
     echo "Checking dependencies for $0"
     for package in "${DEPENDENCIES[@]}"; do
@@ -45,30 +61,48 @@ function solve_dependencies() {
         for package in "${missing_packages_list[@]}"; do
             echo $package
         done
-        while true; do
-            read -p "Do you want to install the missing dependencies? (yes/no): " answer
-            case $answer in
-                [Yy]* ) 
-                    for package in "${missing_packages_list[@]}"; do
-                        echo -n " - Installing $package...                  "
-                        sudo apt-get install -y $package >> /dev/null
-                        if (dpkg -l | grep -w "$package") > /dev/null; then
-                            echo -e "\e[32m OK \e[0m"
-                        else
-                            echo -e "\e[31m Failed \e[0m"
-                        fi
-                    done
-                    return 0
-                    ;;
-                [Nn]* ) 
-                    return 1
-                    ;;
-                * ) 
-                    echo "Please answer yes or no."
-                    ;;
-            esac
-        done
+
+        if [ "$skip_prompt" = true ] || [ "$install_all" = true ]; then
+            for package in "${missing_packages_list[@]}"; do
+                echo -n " - Installing $package...                  "
+                sudo apt-get install -y $package >> /dev/null
+                if (dpkg -l | grep -w "$package") > /dev/null; then
+                    echo -e "\e[32m OK \e[0m"
+                else
+                    echo -e "\e[31m Failed \e[0m"
+                fi
+            done
+            return 0
+        else
+            while true; do
+                if [ "$FLAG_YES_TO_ALL" = true ]; then
+                        answer="yes"
+                    else
+                        read -p "Do you want to install the missing dependencies? (yes/no): " answer
+                fi
+                case $answer in
+                    [Yy]* ) 
+                        for package in "${missing_packages_list[@]}"; do
+                            echo -n " - Installing $package...                  "
+                            sudo apt-get install -y $package >> /dev/null
+                            if (dpkg -l | grep -w "$package") > /dev/null; then
+                                echo -e "\e[32m OK \e[0m"
+                            else
+                                echo -e "\e[31m Failed \e[0m"
+                            fi
+                        done
+                        return 0
+                        ;;
+                    [Nn]* ) 
+                        return 1
+                        ;;
+                    * ) 
+                        echo "Please answer yes or no."
+                        ;;
+                esac
+            done
+        fi
     fi
 }
 
-solve_dependencies
+solve_dependencies -y
