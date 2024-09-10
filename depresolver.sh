@@ -141,5 +141,3 @@ function solve_dependencies() {
         fi
     fi
 }
-
-solve_dependencies
